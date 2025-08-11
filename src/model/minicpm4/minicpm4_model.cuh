@@ -1,5 +1,7 @@
 #pragma once
 #include "../model.cuh"
+#include "../elementwise.cuh"
+
 #include "minicpm4_layer.cuh"
 #include "minicpm4_kvcache.cuh"
 
@@ -26,6 +28,9 @@ struct MiniCPM4Impl : Model {
     LMHead<T>* lm_head;
     float residual_scale;
 
+    bool use_eagle3;
+    T* eagle3_hidden = nullptr;
+
     MiniCPM4Impl(
         float memory_limit,
         int vocab_size,
@@ -44,7 +49,8 @@ struct MiniCPM4Impl : Model {
         int block_window_size = 32,
         int sparse_topk_k = 32,
         int sparse_switch = 8192,
-        bool use_compress_lse = false
+        bool use_compress_lse = false,
+        bool use_eagle3 = false
     ) {
         this->vocab_size = vocab_size;
         this->num_hidden_layers = num_hidden_layers;
@@ -57,7 +63,9 @@ struct MiniCPM4Impl : Model {
 
         this->chunk_length = chunk_length;
         this->residual_scale = scale_residual;
-        
+
+        this->use_eagle3 = use_eagle3;
+
         memory = new Memory(memory_limit);
 
         kv_caches = new MiniCPM4KVCacheManager<T>(num_hidden_layers, num_key_value_heads, head_dim, sparse_topk_k, use_compress_lse);
@@ -66,7 +74,7 @@ struct MiniCPM4Impl : Model {
         for (int i = 0; i < num_hidden_layers; i++) {
             layers.push_back(new MiniCPM4Layer<T>(hidden_size, intermediate_size, num_attention_heads, num_key_value_heads, head_dim, rms_norm_eps, residual_scale, sink_window_size, block_window_size, sparse_switch, use_compress_lse));
         }
-        norm = new RMSNorm<T>(hidden_size, rms_norm_eps);
+        norm = new RMSNorm<T>(hidden_size, rms_norm_eps);        
         lm_head = new LMHead<T>(hidden_size, vocab_size, scale_lmhead);
     }
 
@@ -89,7 +97,13 @@ struct MiniCPM4Impl : Model {
         // norm and lm_head are not used in prefill
         int64_t norm_end = norm->init_output_ptr(memory, num_tokens, layer_end);
         int64_t lm_head_end = lm_head->init_output_ptr(memory, 64, norm_end);
-        return lm_head_end;
+
+        if (use_eagle3) {
+            int64_t eagle_end = memory->allocate((void**)&eagle3_hidden, lm_head_end, num_tokens * 3 * this->hidden_size * sizeof(T));
+            return eagle_end;
+        } else {
+            return lm_head_end;
+        }
     }
 
     int init_storage() {
@@ -125,6 +139,9 @@ struct MiniCPM4Impl : Model {
     void prefill_embed(int32_t num_tokens, int32_t num_history_tokens, T* embed, int32_t* position_ids, void* output) {
         T* layer_output = nullptr;
         for (int i = 0; i < num_hidden_layers; i++) {
+            if (use_eagle3 && ((i == 2) || (i == num_hidden_layers / 2) || (i == num_hidden_layers - 3))) {
+                elementwise_add_and_concat3(calc_stream, num_tokens, hidden_size, num_hidden_layers, i, embed, layer_output, eagle3_hidden, this->residual_scale);
+            }
             this->layers[i]->prefill(num_tokens, num_history_tokens, embed, layer_output, position_ids, this->kv_caches->caches[i]);
             layer_output = this->layers[i]->output;
         }
@@ -142,6 +159,9 @@ struct MiniCPM4Impl : Model {
         Mask mask(mask_2d, num_tokens, num_tokens);
         T* layer_output = nullptr;
         for (int i = 0; i < num_hidden_layers; i++) {
+            if (use_eagle3 && ((i == 2) || (i == num_hidden_layers / 2) || (i == num_hidden_layers - 3))) {
+                elementwise_add_and_concat3(calc_stream, num_tokens, hidden_size, num_hidden_layers, i, embed, layer_output, eagle3_hidden, this->residual_scale);
+            }
             this->layers[i]->decode(num_tokens, padded_length, this->embedding->output, layer_output, position_ids, cache_length, mask, this->kv_caches->caches[i]);
             layer_output = this->layers[i]->output;
         }

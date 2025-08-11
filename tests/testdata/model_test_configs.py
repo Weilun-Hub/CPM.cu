@@ -37,13 +37,24 @@ MINICPM4_8B_CONFIGS = [
         "description": "Quantization only"
     },
     {
-        "name": "MiniCPM4-8B-eagle",
+        "name": "MiniCPM4-8B-eagle2",
+        "spec_type": "eagle2",
         "apply_sparse": False,
         "apply_quant": False,
         "apply_eagle": True,
         "apply_eagle_quant": False,
         "minicpm4_yarn": False,
-        "description": "Eagle speculative decoding only"
+        "description": "Eagle2 speculative decoding only"
+    },
+    {
+        "name": "MiniCPM4-8B-eagle3",
+        "spec_type": "eagle3",
+        "apply_sparse": False,
+        "apply_quant": False,
+        "apply_eagle": True,
+        "apply_eagle_quant": False,
+        "minicpm4_yarn": False,
+        "description": "Eagle3 speculative decoding only"
     },
     {
         "name": "MiniCPM4-8B-sparse-quant",
@@ -55,22 +66,34 @@ MINICPM4_8B_CONFIGS = [
         "description": "Sparse attention + quantization"
     },
     {
-        "name": "MiniCPM4-8B-sparse-eagle",
+        "name": "MiniCPM4-8B-sparse-eagle2",
+        "spec_type": "eagle2",
         "apply_sparse": True,
         "apply_quant": False,
         "apply_eagle": True,
         "apply_eagle_quant": False,
         "minicpm4_yarn": False,
-        "description": "Sparse attention + Eagle speculative decoding"
+        "description": "Sparse attention + Eagle2 speculative decoding"
     },
     {
-        "name": "MiniCPM4-8B-quant-eagle",
+        "name": "MiniCPM4-8B-sparse-eagle3",
+        "spec_type": "eagle3",
+        "apply_sparse": True,
+        "apply_quant": False,
+        "apply_eagle": True,
+        "apply_eagle_quant": False,
+        "minicpm4_yarn": False,
+        "description": "Sparse attention + Eagle3 speculative decoding"
+    },
+    {
+        "name": "MiniCPM4-8B-quant-eagle2",
+        "spec_type": "eagle2",
         "apply_sparse": False,
         "apply_quant": True,
         "apply_eagle": True,
         "apply_eagle_quant": True,
         "minicpm4_yarn": False,
-        "description": "Quantization + Eagle with quantization"
+        "description": "Quantization + Eagle2 with quantization"
     },
     {
         "name": "MiniCPM4-8B-full-optimized",

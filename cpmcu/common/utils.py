@@ -107,7 +107,9 @@ def create_model(model_path, draft_model_path, config):
     from ..llm import LLM
     from ..llm_w4a16_gptq_marlin import W4A16GPTQMarlinLLM
     from ..speculative import LLM_with_eagle
+    from ..speculative import LLM_with_eagle3
     from ..speculative.eagle_base_quant.eagle_base_w4a16_marlin_gptq import W4A16GPTQMarlinLLM_with_eagle
+    from ..speculative.eagle_base_quant.eagle3_base_w4a16_marlin_gptq import W4A16GPTQMarlinLLM_with_eagle3
     
     with logger.stage_context("Creating model instance"):
         # Auto-detect model features
@@ -137,25 +139,42 @@ def create_model(model_path, draft_model_path, config):
             'topk_per_iter': config.get('spec_topk_per_iter', 10),
             'tree_size': config.get('spec_tree_size', 12),
             'eagle_window_size': config.get('spec_window_size', 1024),
-            'frspec_vocab_size': config.get('frspec_vocab_size', 0),
             'apply_eagle_quant': draft_model_quantized,
-            'use_rope': config.get('model_type') in ['minicpm', 'minicpm4'],
-            'use_input_norm': config.get('model_type') in ['minicpm', 'minicpm4'],
-            'use_attn_norm': config.get('model_type') in ['minicpm', 'minicpm4']
+            'use_rope': config.get('model_type') in ['minicpm', 'minicpm4']
         }
+
+        if config.get('spec_type', 'eagle2') == 'eagle2':
+            spec_kwargs.update(
+                frspec_vocab_size=config.get('frspec_vocab_size', 0),
+                use_input_norm=config.get('model_type') in ['minicpm', 'minicpm4'],
+                use_attn_norm=config.get('model_type') in ['minicpm', 'minicpm4']
+            )
+        
+        if config.get('spec_type', 'eagle2') == 'eagle3':
+            spec_kwargs.update(
+                use_eagle3=True
+            )
         
         # Create model based on configuration
         if base_model_quantized:
             if has_draft_model:
-                logger.info("Creating [yellow]quantized model[/yellow] with [green]Eagle speculative decoding[/green]")
-                return W4A16GPTQMarlinLLM_with_eagle(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
+                if config.get('spec_type', 'eagle2') == 'eagle2':
+                    logger.info("Creating [yellow]quantized model[/yellow] with [green]Eagle speculative decoding[/green]")
+                    return W4A16GPTQMarlinLLM_with_eagle(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
+                else:
+                    logger.info("Creating [yellow]quantized model[/yellow] with [green]Eagle3 speculative decoding[/green]")
+                    return W4A16GPTQMarlinLLM_with_eagle3(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
             else:
                 logger.info("Creating [yellow]quantized model[/yellow]")
                 return W4A16GPTQMarlinLLM(model_path, **common_kwargs)
         else:
             if has_draft_model:
-                logger.info("Creating model with [green]Eagle speculative decoding[/green]")
-                return LLM_with_eagle(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
+                if config.get('spec_type', 'eagle2') == 'eagle2':
+                    logger.info("Creating model with [green]Eagle speculative decoding[/green]")
+                    return LLM_with_eagle(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
+                else:
+                    logger.info("Creating model with [green]Eagle3 speculative decoding[/green]")
+                    return LLM_with_eagle3(draft_model_path, model_path, **common_kwargs, **spec_kwargs)
             else:
                 logger.info("Creating [cyan]standard model[/cyan]")
                 return LLM(model_path, **common_kwargs)

@@ -37,6 +37,7 @@ class W4A16GPTQMarlinLLM(torch.nn.Module):
                  use_attn_bias: bool = False,
                  temperature: float = 0.0,
                  random_seed = None,
+                 use_eagle3: bool = False,
     ):
         super().__init__()
 
@@ -48,6 +49,7 @@ class W4A16GPTQMarlinLLM(torch.nn.Module):
         self.cuda_graph = cuda_graph
         self.temperature = temperature
         self.chunk_length = chunk_length
+        self.use_eagle3 = use_eagle3
         
         # Initialize random generator if random_seed is provided
         if random_seed is not None:
@@ -90,6 +92,7 @@ class W4A16GPTQMarlinLLM(torch.nn.Module):
                 sparse_topk_k,
                 sparse_switch,
                 use_compress_lse,
+                self.use_eagle3,
             )
         else:
             C.init_w4a16_gptq_marlin_base_model(
@@ -110,6 +113,7 @@ class W4A16GPTQMarlinLLM(torch.nn.Module):
                 scale_residual,
                 use_qk_norm,
                 use_attn_bias,
+                self.use_eagle3,
             )
 
         self.logits = torch.empty((64, self.config.vocab_size), dtype=self.dtype, device="cuda")

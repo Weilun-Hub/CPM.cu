@@ -38,6 +38,7 @@ class LLM(torch.nn.Module):
                  use_attn_bias: bool = False,
                  temperature: float = 0.0,
                  random_seed: int = None,
+                 use_eagle3: bool = False,
     ):
         super().__init__()
 
@@ -67,7 +68,8 @@ class LLM(torch.nn.Module):
         scale_embed = self.config.scale_emb if hasattr(self.config, "scale_emb") else 1.0
         scale_lmhead = (self.config.dim_model_base / self.config.hidden_size) if hasattr(self.config, "dim_model_base") else 1.0
         scale_residual = self.config.scale_depth / math.sqrt(self.config.num_hidden_layers) if hasattr(self.config, "scale_depth") else 1.0
-
+        self.use_eagle3 = use_eagle3
+        
         if apply_sparse:
             C.init_minicpm4_model(
                 memory_limit,
@@ -89,6 +91,7 @@ class LLM(torch.nn.Module):
                 sparse_topk_k,
                 sparse_switch,
                 use_compress_lse,
+                use_eagle3
             )
         else:
             C.init_base_model(
@@ -108,6 +111,7 @@ class LLM(torch.nn.Module):
                 scale_residual,
                 use_qk_norm,
                 use_attn_bias,
+                use_eagle3
             )
 
         self.logits = torch.empty((64, self.config.vocab_size), dtype=self.dtype, device="cuda")

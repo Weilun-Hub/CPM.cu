@@ -231,6 +231,7 @@ class Display:
         "Speculative Decoding": {
             "color": "bright_magenta",
             "fields": [
+                ("spec_type", "Speculative Decoding Type", None),
                 ("spec_window_size", "Window Size", None),
                 ("spec_num_iter", "Iterations", None),
                 ("spec_topk_per_iter", "Top-K per Iter", None),

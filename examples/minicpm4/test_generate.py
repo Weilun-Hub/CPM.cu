@@ -21,6 +21,8 @@ def main():
                       help='Enable Eagle speculative decoding (default: True)')
     group.add_argument('--apply-eagle-quant', '--apply_eagle_quant', default=True, type=str2bool, nargs='?', const=True,
                       help='Enable quantization for Eagle draft model (default: True)')
+    group.add_argument('--spec-type', '--spec_type', type=str, default="eagle2", choices=["eagle2", "eagle3"],
+                      help='Speculative decoding type (default: eagle2)')
     group.add_argument('--minicpm4-yarn', '--minicpm4_yarn', default=True, type=str2bool, nargs='?', const=True,
                       help='Enable MiniCPM4 YARN for long context support (default: True)')
     
@@ -43,7 +45,7 @@ def main():
                "--model-type", "minicpm4" if args.apply_sparse else "minicpm"]
     
     if args.apply_eagle:
-        cmd_args.extend(["--draft-model-path", draft_model_path, "--frspec-path", frspec_path])
+        cmd_args.extend(["--spec-type", args.spec_type, "--draft-model-path", draft_model_path, "--frspec-path", frspec_path])
     
     # Add YARN configuration
     if args.minicpm4_yarn:

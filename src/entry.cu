@@ -18,6 +18,7 @@
 #include "model/eagle.cuh"
 #include "model/minicpm4/minicpm4_eagle.cuh"
 #include "model/eagle_base_quant/eagle_base_w4a16_gptq_marlin.cuh"
+#include "model/eagle3/eagle3.cuh"
 
 // spec model
 #include "model/spec_quant/w4a16_gm_spec_w4a16_gm.cuh"
@@ -97,6 +98,19 @@
     }                                        \
   }()
 
+  #define EAGLE3_QUANT_SWITCH(COND, T, ...)               \
+  [&] {                                      \
+    if (COND == true) {                              \
+      using LayerType = Eagle3W4A16GPTQMarlinLayer<T>; \
+      using FcType = W4A16GPTQMarlinLinear<T>; \
+      return __VA_ARGS__();                  \
+    } else { \
+      using LayerType = Eagle3Layer<T>; \
+      using FcType = Linear<T>; \
+      return __VA_ARGS__();                  \
+    }                                        \
+  }()
+
 Model* model;
 
 void init_base_model(
@@ -115,7 +129,8 @@ void init_base_model(
     float scale_lmhead,
     float scale_residual,
     bool use_qk_norm = false,
-    bool use_attn_bias = false
+    bool use_attn_bias = false,
+    bool use_eagle3 = false
 ) {
     init_resources();
 
@@ -135,7 +150,8 @@ void init_base_model(
             scale_lmhead,
             scale_residual,
             use_qk_norm,
-            use_attn_bias
+            use_attn_bias,
+            use_eagle3
         );
     });
 
@@ -160,7 +176,8 @@ void init_minicpm4_model(
     int block_window_size,
     int sparse_topk_k,
     int sparse_switch,
-    bool use_compress_lse
+    bool use_compress_lse,
+    bool use_eagle3
 ) {
     init_resources();
 
@@ -183,7 +200,8 @@ void init_minicpm4_model(
             block_window_size,
             sparse_topk_k,
             sparse_switch,
-            use_compress_lse
+            use_compress_lse,
+            use_eagle3
         );
     });
 
@@ -253,7 +271,8 @@ void init_w4a16_gptq_marlin_minicpm4_model(
     int block_window_size,
     int sparse_topk_k,
     int sparse_switch,
-    bool use_compress_lse
+    bool use_compress_lse,
+    bool use_eagle3
 ) {
     init_resources();
 
@@ -277,7 +296,8 @@ void init_w4a16_gptq_marlin_minicpm4_model(
             block_window_size,
             sparse_topk_k,
             sparse_switch,
-            use_compress_lse
+            use_compress_lse,
+            use_eagle3
         );
     });
 
@@ -360,6 +380,53 @@ void init_minicpm4_eagle_model(
                     residual_scale,
                     use_input_norm,
                     use_attn_norm
+                );
+            });
+        });
+    });
+    if (!dispatch_model) {
+        printf("Model type failed to dispatch: %s\n", typeid(*model).name());
+    }
+}
+
+
+void init_eagle3_model(
+    int num_layers,
+    int intermediate_size,
+    int num_attention_heads,
+    int num_key_value_heads,
+    int head_dim,
+    float rms_norm_eps,
+    int num_iter,
+    int topk_per_iter,
+    int tree_size,
+    int torch_dtype,
+    bool apply_eagle_quant,
+    int group_size,
+    int eagle_window_size,
+    int draft_vocab_size,
+    float residual_scale
+) {
+    bool dispatch_model = false;
+    DTYPE_SWITCH(torch_dtype, [&] {
+        MODEL_TYPE_SWITCH(model, elem_type, [&] {
+            dispatch_model = true;
+            EAGLE3_QUANT_SWITCH(apply_eagle_quant, elem_type, [&] {
+                model = new Eagle3Impl<elem_type, ModelType, LayerType, FcType>(
+                    typed_model,
+                    num_layers,
+                    intermediate_size,
+                    num_attention_heads,
+                    num_key_value_heads,
+                    head_dim,
+                    rms_norm_eps,
+                    num_iter,
+                    topk_per_iter,
+                    tree_size,
+                    group_size,
+                    eagle_window_size,
+                    draft_vocab_size,
+                    residual_scale
                 );
             });
         });
@@ -547,6 +614,7 @@ PYBIND11_MODULE(C, m) {
     // eagle bind
     m.def("init_eagle_model", &init_eagle_model, "Init eagle model");
     m.def("init_minicpm4_eagle_model", &init_minicpm4_eagle_model, "Init minicpm4 eagle model");
+    m.def("init_eagle3_model", &init_eagle3_model, "Init eagle3 model");
     // spec bind
     m.def("init_w4a16_gm_spec_w4a16_gm_model", &init_w4a16_gm_spec_w4a16_gm_model, "Init w4a16 spec v1 model");
 

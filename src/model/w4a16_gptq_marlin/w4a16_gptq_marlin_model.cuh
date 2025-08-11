@@ -1,5 +1,7 @@
 #pragma once
 #include "../model.cuh"
+#include "../elementwise.cuh"
+
 #include "w4a16_gptq_marlin_layer.cuh"
 
 
@@ -26,6 +28,8 @@ struct W4A16GPTQMarlinModelImpl: Model {
     LMHead<T>* lm_head;
     float residual_scale;
 
+    bool use_eagle3;
+    T* eagle3_hidden = nullptr;
 
     W4A16GPTQMarlinModelImpl(
         float memory_limit,
@@ -43,7 +47,8 @@ struct W4A16GPTQMarlinModelImpl: Model {
         float scale_lmhead = 1.0f,
         float scale_residual = 1.0f,
         bool use_qk_norm = false,
-        bool use_attn_bias = false
+        bool use_attn_bias = false,
+        bool use_eagle3 = false
     ) {
         this->vocab_size = vocab_size;
         this->num_hidden_layers = num_hidden_layers;
@@ -56,6 +61,8 @@ struct W4A16GPTQMarlinModelImpl: Model {
 
         this->chunk_length = chunk_length;
         this->residual_scale = scale_residual;
+
+        this->use_eagle3 = use_eagle3;
         
         memory = new Memory(memory_limit);
 
@@ -88,7 +95,13 @@ struct W4A16GPTQMarlinModelImpl: Model {
         // norm and lm_head are not used in prefill
         int64_t norm_end = norm->init_output_ptr(memory, num_tokens, layer_end);
         int64_t lm_head_end = lm_head->init_output_ptr(memory, 64, norm_end);
-        return lm_head_end;
+
+        if (use_eagle3) {
+            int64_t eagle_end = memory->allocate((void**)&eagle3_hidden, lm_head_end, num_tokens * 3 * this->hidden_size * sizeof(T));
+            return eagle_end;
+        } else {
+            return lm_head_end;
+        }
     }
 
     int init_storage() {
@@ -124,6 +137,9 @@ struct W4A16GPTQMarlinModelImpl: Model {
     void prefill_embed(int32_t num_tokens, int32_t num_history_tokens, T* embed, int32_t* position_ids, void* output) {
         T* layer_output = nullptr;
         for (int i = 0; i < num_hidden_layers; i++) {
+            if (use_eagle3 && ((i == 2) || (i == num_hidden_layers / 2) || (i == num_hidden_layers - 3))) {
+                elementwise_add_and_concat3(calc_stream, num_tokens, hidden_size, num_hidden_layers, i, embed, layer_output, eagle3_hidden, this->residual_scale);
+            }
             this->layers[i]->prefill(num_tokens, num_history_tokens, embed, layer_output, position_ids, this->kv_caches->caches[i]);
             layer_output = this->layers[i]->output;
         }
@@ -141,6 +157,9 @@ struct W4A16GPTQMarlinModelImpl: Model {
         Mask mask(mask_2d, num_tokens, num_tokens);
         T* layer_output = nullptr;
         for (int i = 0; i < num_hidden_layers; i++) {
+            if (use_eagle3 && ((i == 2) || (i == num_hidden_layers / 2) || (i == num_hidden_layers - 3))) {
+                elementwise_add_and_concat3(calc_stream, num_tokens, hidden_size, num_hidden_layers, i, embed, layer_output, eagle3_hidden, this->residual_scale);
+            }
             this->layers[i]->decode(num_tokens, padded_length, this->embedding->output, layer_output, position_ids, cache_length, mask, this->kv_caches->caches[i]);
             layer_output = this->layers[i]->output;
         }
