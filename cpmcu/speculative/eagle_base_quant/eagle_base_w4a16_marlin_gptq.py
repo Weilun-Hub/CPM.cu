@@ -153,10 +153,3 @@ class W4A16GPTQMarlinLLM_with_eagle(W4A16GPTQMarlinLLM_with_tree_drafter):
             C.load_model(f"{cls}.{name}", param.data_ptr())
         else:
             super()._load(name, param, dtype)
-
-    def load_from_hf(self):
-        super().load_from_hf()
-        
-        if self.drafter_type == "eagle3":
-            inv_freq = 1.0 / (self.eagle_config.rope_theta ** (torch.arange(0, self.eagle_config.head_dim, 2).float() / self.eagle_config.head_dim))
-            self._load(f"{self.drafter_type}.rotary_emb.inv_freq", inv_freq, dtype=torch.float32)

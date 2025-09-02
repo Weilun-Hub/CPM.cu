@@ -36,7 +36,7 @@ class W4A16GPTQMarlinLLM_with_tree_drafter(W4A16GPTQMarlinLLM):
         with torch.no_grad():
             self._load_from_ckpt(self.drafter_path, cls=self.drafter_type)
 
-            if self.use_rope:
+            if self.use_rope or (self.drafter_type == "eagle3"):
                 if hasattr(self.config, "rope_scaling") and self.config.rope_scaling is not None:
                     rope_type = self.config.rope_scaling.get("rope_type", self.config.rope_scaling.get("type"))
                 else:
